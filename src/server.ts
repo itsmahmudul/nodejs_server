@@ -1,61 +1,36 @@
 import http, { IncomingMessage, Server, ServerResponse } from "http";
 import config from "./config";
+import { RouteHandler, routes } from "./helpers/RouteHandler";
+import "./helpers/RouteHandler";
+import findDynamicRoute from "./helpers/dynamicRouteHandler";
 
 const server: Server = http.createServer(
   (req: IncomingMessage, res: ServerResponse) => {
-    console.log("Server is running");
+    const method = req.method?.toUpperCase() || "";
+    const path = req.url || "";
 
-    //root route
-    if (req.url == "/" && req.method == "GET") {
-      res.writeHead(200, { "content-type": "application/json" });
+    const methodMap = routes.get(method);
+    const handler: RouteHandler | undefined = methodMap?.get(path);
+
+    if (handler) {
+      handler(req, res);
+    } else if (findDynamicRoute(method, path)) {
+      const match = findDynamicRoute(method, path);
+      (req as any).params = match?.params;
+      match?.handler(req, res);
+    } else {
+      res.writeHead(404, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
-          message: "hello from node js from typescript...",
-          path: req.url,
-        })
+          success: false,
+          message: "Route not found!!!",
+          path,
+        }),
       );
     }
-
-    //health route
-    if (req.url == "/api" && req.method == "GET") {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify({
-          message: "Health status ok",
-          path: req.url,
-        })
-      );
-    }
-
-    if (req.url === "/api/users" && req.method === "POST") {
-      // res.writeHead(200, { "Content-Type": "application/json" });
-      // return res.end(
-      //   JSON.stringify({
-      //     id: 1,
-      //     name: "alice",
-      //   })
-      // );
-
-      let body = "";
-
-      //listen for data chunk
-      req.on("data", (chunk) => {
-        body += chunk.toString();
-      });
-
-      req.on("end", () => {
-        try {
-          const parseBody = JSON.parse(body);
-          console.log(parseBody);
-          res.end(JSON.stringify(parseBody));
-        } catch (err: any) {
-          console.log(err?.message);
-        }
-      });
-    }
-  }
+  },
 );
 
 server.listen(config.port, () => {
-  console.log(`Server is running at port ${config.port}`);
+  console.log(`server is running on port ${config.port}`);
 });
